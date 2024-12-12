@@ -295,3 +295,122 @@ This implementation deliberately simplifies many concepts to focus on learning:
 - Uses C compilation instead of direct machine code generation
 - Focuses on basic JSON parsing without optimizations
 - Provides a clear path to understanding JIT compilation basics
+
+## Compiler Theory Components
+
+### 1. Regular Language and Grammar
+
+The JSON parser's lexical structure can be described using regular expressions:
+
+```
+STRING  -> "[^"]*"
+NUMBER  -> -?[0-9]+(\.[0-9]+)?
+BOOLEAN -> true|false
+NULL    -> null
+WS      -> [ \t\n\r]+
+```
+
+### 2. Context-Free Grammar
+
+```
+json     → object
+object   → '{' members '}'
+members  → pair (',' pair)* | ε
+pair     → STRING ':' value
+value    → STRING | NUMBER | BOOLEAN | NULL
+```
+
+### 3. Chomsky Normal Form
+
+Transforming our grammar to CNF:
+
+```
+S → AB          /* json -> { members } */
+A → OB          /* object transformation */
+B → CD          /* pair production */
+C → STRING      /* terminal production */
+D → EF          /* value split */
+E → COLON       /* terminal */
+F → VALUE       /* terminal */
+```
+
+### 4. Automata Analysis
+
+#### DFA for String Tokenization
+
+```
+States: Q = {START, IN_STRING, ESCAPED, DONE, ERROR}
+Start state: START
+Accept state: DONE
+Transitions:
+  START     + " → IN_STRING
+  IN_STRING + \ → ESCAPED
+  IN_STRING + " → DONE
+  ESCAPED   + any → IN_STRING
+```
+
+#### State Transition Table
+
+```
+State      | "  | \  | other
+-----------|----|----|-------
+START      | 1  | E  | E
+IN_STRING  | 3  | 2  | 1
+ESCAPED    | 1  | 1  | 1
+DONE       | E  | E  | E
+
+Where: 1=IN_STRING, 2=ESCAPED, 3=DONE, E=ERROR
+```
+
+### 5. Production Rules and Parsing
+
+Left-most derivation example for `{"name":"John"}`:
+
+```
+json ⇒ object
+    ⇒ '{' members '}'
+    ⇒ '{' pair '}'
+    ⇒ '{' STRING ':' value '}'
+    ⇒ '{"name":"John"}'
+```
+
+### 6. Memory Management Analysis
+
+The parser implements several memory optimization techniques:
+
+1. **Buffer Management**:
+
+   ```c
+   typedef struct {
+       char* buffer;
+       size_t size;
+       size_t capacity;
+   } StringBuffer;
+   ```
+
+2. **Memory Pooling**:
+   ```c
+   typedef struct {
+       void* blocks[MAX_BLOCKS];
+       size_t current_block;
+       size_t offset;
+   } MemoryPool;
+   ```
+
+### 7. Dataflow Analysis
+
+Example of dataflow optimization in the generated parser:
+
+```c
+// Before optimization
+if (str != NULL) {
+    if (str[0] == '"') {
+        parse_string(str);
+    }
+}
+
+// After optimization (null check combined with string check)
+if (str != NULL && str[0] == '"') {
+    parse_string(str);
+}
+```
