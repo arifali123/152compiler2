@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -110,20 +111,19 @@ type CompiledParser struct {
 
 // CompileAndBuild generates C code, compiles it into an executable, and returns a parser instance
 func CompileAndBuild(cStruct analyzer.CStruct) (*CompiledParser, error) {
-	// Create temporary directory
-	tmpDir, err := os.MkdirTemp("", "jsonparser_*")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp dir: %v", err)
+	// Create c_output directory in root if it doesn't exist
+	outputDir := "c_output"
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create output directory: %v", err)
 	}
 
 	// Generate and write C code
-	if err := CompileParser(cStruct, tmpDir); err != nil {
-		os.RemoveAll(tmpDir)
+	if err := CompileParser(cStruct, outputDir); err != nil {
 		return nil, err
 	}
 
-	// Create main.c that uses our parser
-	mainFile := filepath.Join(tmpDir, "main.c")
+	// Create main file using struct name
+	mainFile := filepath.Join(outputDir, fmt.Sprintf("main_%s.c", cStruct.Name))
 	mainCode := fmt.Sprintf(`
 #include <stdio.h>
 #include <stdlib.h>
@@ -150,22 +150,28 @@ int main(int argc, char *argv[]) {
 }`, cStruct.Name)
 
 	if err := os.WriteFile(mainFile, []byte(mainCode), 0644); err != nil {
-		os.RemoveAll(tmpDir)
-		return nil, fmt.Errorf("failed to write main.c: %v", err)
+		return nil, fmt.Errorf("failed to write main_%s.c: %v", cStruct.Name, err)
 	}
 
-	// Compile the program
-	outPath := filepath.Join(tmpDir, "parser")
-	cmd := exec.Command("gcc", "-o", outPath, mainFile, filepath.Join(tmpDir, fmt.Sprintf("%s.c", cStruct.Name)))
+	// Compile the program with struct-specific names
+	outPath := filepath.Join(outputDir, fmt.Sprintf("parser_%s", cStruct.Name))
+	cmd := exec.Command("gcc", "-o", outPath, mainFile, filepath.Join(outputDir, fmt.Sprintf("%s.c", cStruct.Name)))
 	if out, err := cmd.CombinedOutput(); err != nil {
-		os.RemoveAll(tmpDir)
 		return nil, fmt.Errorf("compilation failed: %v\nOutput: %s", err, out)
 	}
 
 	return &CompiledParser{
 		execPath: outPath,
 		cleanup: func() {
-			os.RemoveAll(tmpDir)
+			// Only remove the files specific to this struct
+			slog.Info("Removing File", slog.String("file", mainFile))
+			os.Remove(mainFile)
+			slog.Info("Removing File", slog.String("file", filepath.Join(outputDir, fmt.Sprintf("%s.c", cStruct.Name))))
+			os.Remove(filepath.Join(outputDir, fmt.Sprintf("%s.c", cStruct.Name)))
+			slog.Info("Removing File", slog.String("file", filepath.Join(outputDir, fmt.Sprintf("%s.h", cStruct.Name))))
+			os.Remove(filepath.Join(outputDir, fmt.Sprintf("%s.h", cStruct.Name)))
+			slog.Info("Removing File", slog.String("file", outPath))
+			os.Remove(outPath)
 		},
 		fields: cStruct.Fields,
 	}, nil
