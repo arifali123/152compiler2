@@ -20,6 +20,15 @@ var TypeMapping = map[reflect.Kind]string{
 	reflect.String:  "char*",
 }
 
+type FieldInfo struct {
+	Name   string // JSON tag or field name
+	GoName string // Original Go field name
+	Type   reflect.Type
+	Offset uintptr
+	CType  string // Mapped C type
+	Kind   string // Kind as string, e.g., "String", "Int", "Bool"
+}
+
 // CStruct represents a C struct with its name and fields
 type CStruct struct {
 	Name   string

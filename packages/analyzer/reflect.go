@@ -5,15 +5,6 @@ import (
 	"reflect"
 )
 
-type FieldInfo struct {
-	Name   string // JSON tag or field name
-	GoName string // Original Go field name
-	Type   reflect.Type
-	Offset uintptr
-	CType  string // Mapped C type
-	Kind   string // Kind as string, e.g., "String", "Int", "Bool"
-}
-
 // AnalyzeStruct analyzes a Go struct type and returns information about its fields.
 func AnalyzeStruct(t reflect.Type) ([]FieldInfo, error) {
 	if t.Kind() != reflect.Struct {
