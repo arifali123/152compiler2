@@ -184,7 +184,7 @@ func (p *CompiledParser) Parse(jsonStr string) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parser execution failed: %v\nOutput: %s", err, out)
 	}
-
+	slog.Info("C Parser Output", slog.String("output", string(out)))
 	// Parse the pipe-delimited output and trim any whitespace/newlines
 	parts := strings.Split(strings.TrimSpace(string(out)), "|")
 	for i := range parts {
